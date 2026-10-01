@@ -46,7 +46,7 @@ sequenceDiagram
 
 ## Tech stack
 
-Java 21 (records, virtual threads) · Spring Boot 3.5 · Spring Kafka · Spring Data JPA / Hibernate · Flyway · PostgreSQL 16 · Apache Kafka 3.9 (KRaft) · Redis 7 · Micrometer + Prometheus · Testcontainers · JUnit 5 · k6 · Docker Compose · Kubernetes (Deployments, HPA, PDBs, probes) · GitHub Actions (CI + image publishing to GHCR)
+Java 21 (records, virtual threads) · Spring Boot 3.5 · Spring Kafka · Spring Data JPA / Hibernate · Flyway · PostgreSQL 16 · Apache Kafka 3.8 (KRaft) · Redis 7 · Micrometer + Prometheus · Testcontainers · JUnit 5 · k6 · Docker Compose · Kubernetes (Deployments, HPA, PDBs, probes) · GitHub Actions (CI + image publishing to GHCR)
 
 ## Run it
 
