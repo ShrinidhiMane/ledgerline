@@ -1,0 +1,62 @@
+server:
+  port: 8082
+  shutdown: graceful
+
+spring:
+  application:
+    name: ledger-service
+  threads:
+    virtual:
+      enabled: true          # Java 21 virtual threads for request handling
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${DB_USER:ledgerline}
+    password: ${DB_PASSWORD:ledgerline}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none         # Flyway owns the schema
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: ledger-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  mvc:
+    problemdetails:
+      enabled: true
+
+ledgerline:
+  topics:
+    payment-requested: payments.requested
+    ledger-results: ledger.results
+  outbox:
+    poll-interval-ms: 100
+    batch-size: 200
+  # number of concurrent Kafka consumers in this instance (<= partitions)
+  consumer-concurrency: ${CONSUMER_CONCURRENCY:3}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true        # /actuator/health/liveness and /readiness for Kubernetes
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

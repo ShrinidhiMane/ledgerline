@@ -1,0 +1,2 @@
+# Keep shell scripts with LF line endings even when checked out on Windows.
+*.sh text eol=lf

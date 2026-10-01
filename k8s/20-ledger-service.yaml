@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-service
+  namespace: ledgerline
+  labels: { app: ledger-service }
+spec:
+  # Up to 6 replicas are useful: one Kafka consumer per partition of payments.requested.
+  replicas: 3
+  selector:
+    matchLabels: { app: ledger-service }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels: { app: ledger-service }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8082"
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 10001 }
+      containers:
+        - name: ledger-service
+          image: ghcr.io/shrinidhimane/ledgerline-ledger:latest
+          ports: [{ containerPort: 8082 }]
+          env:
+            - name: DB_URL
+              valueFrom: { configMapKeyRef: { name: ledgerline-config, key: LEDGER_DB_URL } }
+            - name: KAFKA_BOOTSTRAP
+              valueFrom: { configMapKeyRef: { name: ledgerline-config, key: KAFKA_BOOTSTRAP } }
+            - name: CONSUMER_CONCURRENCY
+              value: "2"
+          envFrom:
+            - secretRef: { name: ledgerline-db }
+          resources:
+            requests: { cpu: 250m, memory: 384Mi }
+            limits: { memory: 768Mi }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8082 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8082 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger-service
+  namespace: ledgerline
+spec:
+  selector: { app: ledger-service }
+  ports: [{ port: 80, targetPort: 8082 }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ledger-service
+  namespace: ledgerline
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: ledger-service }
