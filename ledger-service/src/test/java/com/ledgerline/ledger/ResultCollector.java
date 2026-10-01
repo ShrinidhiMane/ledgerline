@@ -28,7 +28,7 @@ public class ResultCollector {
         results.computeIfAbsent(event.paymentId(), k -> new CopyOnWriteArrayList<>()).add(event);
     }
 
-    @KafkaListener(topics = "${ledgerline.topics.payment-requested}.DLT", groupId = "test-dlt")
+    @KafkaListener(topics = "${ledgerline.topics.payment-requested}-dlt", groupId = "test-dlt")
     public void onDeadLetter(String message) {
         deadLetters.add(message);
     }

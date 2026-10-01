@@ -28,7 +28,7 @@ public class KafkaConfig {
     /** Same partition count as the source topic: the recoverer keeps the original partition. */
     @Bean
     NewTopic paymentRequestedDeadLetterTopic(LedgerlineProperties props) {
-        return TopicBuilder.name(props.topics().paymentRequested() + ".DLT").partitions(6).replicas(1).build();
+        return TopicBuilder.name(props.topics().paymentRequested() + "-dlt").partitions(6).replicas(1).build();
     }
 
     /**
