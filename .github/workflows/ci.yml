@@ -61,7 +61,7 @@ jobs:
         run: bash scripts/e2e.sh
       - name: Load test (k6)
         run: |
-          mkdir -p out
+          mkdir -p out && chmod 777 out
           docker run --rm --network host -v "$PWD/loadtest:/scripts" -v "$PWD/out:/out" grafana/k6 run \
             -e RATE=200 -e DURATION=60s \
             --summary-trend-stats="avg,med,p(95),p(99),max" \
