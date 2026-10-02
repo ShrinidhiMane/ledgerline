@@ -20,6 +20,11 @@ spring:
     enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9094}
+    # Observation on producer and consumer: trace context travels in Kafka record headers.
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -52,6 +57,11 @@ ledgerline:
     refill-per-second: ${RATE_LIMIT_REFILL_PER_SECOND:50}
 
 management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  # Spans are exported only when MANAGEMENT_OTLP_TRACING_ENDPOINT is set
+  # (e.g. http://jaeger:4318/v1/traces in docker-compose), so tests and bare runs stay quiet.
   endpoints:
     web:
       exposure:
@@ -66,3 +76,8 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
+
+logging:
+  pattern:
+    # Put the trace and span ids on every log line so logs can be joined to traces.
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
