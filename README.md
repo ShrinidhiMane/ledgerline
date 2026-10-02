@@ -46,7 +46,7 @@ sequenceDiagram
 
 ## Tech stack
 
-Java 21 (records, virtual threads) · Spring Boot 3.5 · Spring Kafka · Spring Data JPA / Hibernate · Flyway · PostgreSQL 16 · Apache Kafka 3.8 (KRaft) · Redis 7 · Micrometer + Prometheus · Testcontainers · JUnit 5 · k6 · Docker Compose · Kubernetes (Deployments, HPA, PDBs, probes) · GitHub Actions (CI + image publishing to GHCR)
+Java 21 (records, virtual threads) · Spring Boot 3.5 · Spring Kafka · Spring Data JPA / Hibernate · Flyway · PostgreSQL 16 · Apache Kafka 3.8 (KRaft) · Redis 7 · Micrometer + Prometheus · OpenTelemetry + Jaeger · Testcontainers · JUnit 5 · k6 · Docker Compose · Kubernetes (Deployments, HPA, PDBs, probes) · GitHub Actions (CI + image publishing to GHCR)
 
 ## Run it
 
@@ -79,6 +79,24 @@ Load test: `docker run --rm -i --network host grafana/k6 run - < loadtest/paymen
 
 Tests: `cd payments-service && mvn verify` (same for `ledger-service`). Docker must be running for Testcontainers.
 
+## Tracing a payment across services
+
+Both services export OpenTelemetry spans over OTLP, and `docker compose up` runs Jaeger at http://localhost:16686. One trace follows a payment through the whole flow:
+
+```
+POST /payments ─► outbox publish ─► Kafka ─► ledger consume ─► outbox publish ─► Kafka ─► payments consume
+  (payments-service)                          (ledger-service)                            (payments-service)
+```
+
+The outbox is what makes this non-trivial. It deliberately decouples the database write from the Kafka publish, and so it also cuts the trace in two: the request ends at the commit, and the relay publishes later on a scheduler thread with no trace context. Each outbox row therefore stores the W3C `traceparent` of the span that wrote it (`V2__outbox_trace_parent.sql`). The relay starts its publish span as a child of that, and Kafka observation carries the context on in the record headers (`TraceContextCodec`, `OutboxRelay`).
+
+Two smaller details:
+
+- Scheduled relay polls are not traced, so the every-100-ms polls don't bury real traces (`TracingConfig`).
+- Every log line carries `[service,traceId,spanId]`, so you can jump from a log line to its trace.
+
+Set `TRACING_SAMPLING_PROBABILITY` to sample less in production. Without `MANAGEMENT_OTLP_TRACING_ENDPOINT`, nothing is exported.
+
 ## API
 
 | Service | Endpoint | Purpose |
@@ -107,7 +125,6 @@ Tests: `cd payments-service && mvn verify` (same for `ledger-service`). Docker m
 ## Roadmap
 
 - Terraform for AWS (EKS + RDS + MSK + ElastiCache)
-- OpenTelemetry distributed tracing across the Kafka hop
 - Multi-currency transfers with FX journal entries
 - Debezium CDC instead of the polling outbox relay
 
