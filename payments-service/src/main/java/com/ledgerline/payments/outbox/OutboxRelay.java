@@ -4,6 +4,8 @@ import com.ledgerline.payments.config.LedgerlineProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -30,13 +32,16 @@ public class OutboxRelay {
     private final LedgerlineProperties props;
     private final Clock clock;
     private final Counter published;
+    private final TraceContextCodec traces;
 
     public OutboxRelay(OutboxRepository outbox, KafkaTemplate<String, String> kafka,
-                       LedgerlineProperties props, Clock clock, MeterRegistry registry) {
+                       LedgerlineProperties props, Clock clock, MeterRegistry registry,
+                       TraceContextCodec traces) {
         this.outbox = outbox;
         this.kafka = kafka;
         this.props = props;
         this.clock = clock;
+        this.traces = traces;
         this.published = Counter.builder("ledgerline.outbox.published")
                 .description("Outbox events published to Kafka").register(registry);
         Gauge.builder("ledgerline.outbox.backlog", outbox, OutboxRepository::countByPublishedAtIsNull)
@@ -52,10 +57,17 @@ public class OutboxRelay {
         }
         Instant now = clock.instant();
         for (OutboxEvent event : batch) {
-            try {
+            // Continue the trace of the request that wrote this row. The Kafka producer span
+            // becomes a child of this one and carries the context on in the record headers.
+            Span span = traces.startSpan("outbox publish " + event.getEventType(), event.getTraceParent())
+                    .tag("messaging.destination.name", event.getTopic())
+                    .tag("ledgerline.event_id", event.getEventId().toString());
+            try (Tracer.SpanInScope ignored = traces.withSpan(span)) {
                 // Wait for the broker ack so we only mark rows that Kafka really has.
                 kafka.send(event.getTopic(), event.getEventKey(), event.getPayload()).get(10, TimeUnit.SECONDS);
             } catch (Exception e) {
+                span.error(e);
+                span.end();
                 // Leave this and later rows unpublished; the transaction keeps the rows already
                 // marked in this batch, and the rest are retried on the next poll.
                 log.warn("Outbox publish failed for event {}: {}", event.getEventId(), e.toString());
@@ -64,6 +76,7 @@ public class OutboxRelay {
                 }
                 return;
             }
+            span.end();
             event.markPublished(now);
             published.increment();
         }

@@ -2,6 +2,7 @@
 #   docker compose up --build -d
 #   ./scripts/demo.sh            # walk through a payment end to end
 #   Prometheus: http://localhost:9090
+#   Jaeger (traces): http://localhost:16686
 services:
   postgres:
     image: postgres:16-alpine
@@ -59,6 +60,7 @@ services:
       REDIS_HOST: redis
       RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY:-100}
       RATE_LIMIT_REFILL_PER_SECOND: ${RATE_LIMIT_REFILL_PER_SECOND:-50}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -71,10 +73,16 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/ledger
       KAFKA_BOOTSTRAP: kafka:9092
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
     restart: unless-stopped
+
+  # Receives spans over OTLP/HTTP (4318) and serves the trace UI.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    ports: ["16686:16686"]
 
   prometheus:
     image: prom/prometheus:v2.54.1

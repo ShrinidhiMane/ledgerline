@@ -7,6 +7,7 @@ import com.ledgerline.ledger.events.LedgerResultEvent;
 import com.ledgerline.ledger.events.PaymentRequestedEvent;
 import com.ledgerline.ledger.outbox.OutboxEvent;
 import com.ledgerline.ledger.outbox.OutboxRepository;
+import com.ledgerline.ledger.outbox.TraceContextCodec;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
@@ -37,10 +38,12 @@ public class LedgerService {
     private final LedgerlineProperties props;
     private final Clock clock;
     private final MeterRegistry metrics;
+    private final TraceContextCodec traces;
 
     public LedgerService(AccountRepository accounts, JournalEntryRepository entries, PostingRepository postings,
                          ProcessedEventRepository processed, OutboxRepository outbox, ObjectMapper json,
-                         LedgerlineProperties props, Clock clock, MeterRegistry metrics) {
+                         LedgerlineProperties props, Clock clock, MeterRegistry metrics,
+                         TraceContextCodec traces) {
         this.accounts = accounts;
         this.entries = entries;
         this.postings = postings;
@@ -50,6 +53,7 @@ public class LedgerService {
         this.props = props;
         this.clock = clock;
         this.metrics = metrics;
+        this.traces = traces;
     }
 
     /**
@@ -124,7 +128,8 @@ public class LedgerService {
         try {
             outbox.save(new OutboxEvent(result.eventId(), result.paymentId(), "LedgerResult",
                     props.topics().ledgerResults(), result.paymentId().toString(),
-                    json.writeValueAsString(result), result.occurredAt()));
+                    json.writeValueAsString(result), result.occurredAt(),
+                    traces.currentTraceParent()));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Could not serialize ledger result", e);
         }

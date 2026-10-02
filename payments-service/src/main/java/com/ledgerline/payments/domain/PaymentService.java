@@ -7,6 +7,7 @@ import com.ledgerline.payments.events.LedgerResultEvent;
 import com.ledgerline.payments.events.PaymentRequestedEvent;
 import com.ledgerline.payments.outbox.OutboxEvent;
 import com.ledgerline.payments.outbox.OutboxRepository;
+import com.ledgerline.payments.outbox.TraceContextCodec;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,10 +33,11 @@ public class PaymentService {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final MeterRegistry metrics;
+    private final TraceContextCodec traces;
 
     public PaymentService(PaymentRepository payments, OutboxRepository outbox, ObjectMapper json,
                           LedgerlineProperties props, TransactionTemplate tx, Clock clock,
-                          MeterRegistry metrics) {
+                          MeterRegistry metrics, TraceContextCodec traces) {
         this.payments = payments;
         this.outbox = outbox;
         this.json = json;
@@ -43,6 +45,7 @@ public class PaymentService {
         this.tx = tx;
         this.clock = clock;
         this.metrics = metrics;
+        this.traces = traces;
     }
 
     public record CreateResult(Payment payment, boolean replayed) {}
@@ -91,7 +94,8 @@ public class PaymentService {
 
         var event = new PaymentRequestedEvent(UUID.randomUUID(), payment.getId(), payer, payee, amountMinor, currency, now);
         outbox.save(new OutboxEvent(event.eventId(), payment.getId(), "PaymentRequested",
-                props.topics().paymentRequested(), payer.toString(), toJson(event), now));
+                props.topics().paymentRequested(), payer.toString(), toJson(event), now,
+                traces.currentTraceParent()));
         return payment;
     }
 
