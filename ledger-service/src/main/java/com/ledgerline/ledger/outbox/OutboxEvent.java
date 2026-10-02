@@ -46,12 +46,16 @@ public class OutboxEvent {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    /** W3C traceparent of the span that wrote this row; null if there was none. */
+    @Column(name = "trace_parent")
+    private String traceParent;
+
     protected OutboxEvent() {
         // for JPA
     }
 
     public OutboxEvent(UUID eventId, UUID aggregateId, String eventType, String topic, String eventKey,
-                       String payload, Instant createdAt) {
+                       String payload, Instant createdAt, String traceParent) {
         this.eventId = eventId;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -59,6 +63,7 @@ public class OutboxEvent {
         this.eventKey = eventKey;
         this.payload = payload;
         this.createdAt = createdAt;
+        this.traceParent = traceParent;
     }
 
     public void markPublished(Instant now) {
@@ -74,4 +79,5 @@ public class OutboxEvent {
     public String getPayload() { return payload; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getPublishedAt() { return publishedAt; }
+    public String getTraceParent() { return traceParent; }
 }
